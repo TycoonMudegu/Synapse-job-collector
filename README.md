@@ -37,6 +37,8 @@ The initial enabled source is MyJobMag's advertised feed. Enable other sources f
 
 ## Google Cloud deployment
 
+Deploy this collector as a **Cloud Run Job**. The Cloud Run service console's **Connect repository** workflow generates a service deployment that waits for a web server on `PORT=8080`. This container runs a batch task and exits, so that deployment fails its startup check. Use `deploy.sh` below, or choose **Cloud Run → Jobs → Deploy container** with an image that has already been built. The script also configures the runtime identity, token access and daily scheduler.
+
 The script creates or updates a job, one scheduler entry, a container repository and dedicated service identities. It does **not** start an immediate collection. Deployment requires your authenticated Google Cloud CLI, a billing-enabled project and the relevant IAM permissions. The build account must be allowed to push images to Artifact Registry.
 
 Generate a private token file without a final newline, put the same value in the PHP host, then deploy:
@@ -53,6 +55,19 @@ bash deploy.sh
 ```
 
 `deploy.sh` preserves an existing token secret. Supplying a different local token file will not rotate it. Rotate credentials deliberately in Secret Manager and the PHP environment together. Never commit a token file or service-account key.
+
+If the build succeeded and a service deployment failed, reuse its image by setting `COLLECTOR_IMAGE` to the Artifact Registry image URL with its tag or digest. With the deployment variables above exported, run:
+
+```bash
+COLLECTOR_IMAGE=us-central1-docker.pkg.dev/your-project/your-repository/your-image:existing-tag \
+IMAGE_TARGET=browser \
+SCHEDULER_PAUSED=true \
+bash deploy.sh
+```
+
+This skips Cloud Build and image-repository creation while configuring the job and its permissions. Match `IMAGE_TARGET` to the existing image so the script allocates the appropriate memory. `SCHEDULER_PAUSED=true` leaves the daily schedule paused for application verification; resume it in Cloud Scheduler when ready. The service's generated repository trigger still targets a service, so disable or reconfigure that trigger before pushing further changes.
+
+Fresh builds install system packages and compile PHP extensions. The browser image also installs Chromium, Xvfb and Playwright and runs browser fixture tests. These are substantial downloads and compilation steps. `deploy.sh` defaults to `IMAGE_TARGET=http`, which skips browser dependencies; use the browser image when Fuzu is enabled. A plain Docker build without `--target` selects the final `browser` stage. The current build config does not pull cached layers from previous builds, so fresh Cloud Build workers repeat that work. Reusing `COLLECTOR_IMAGE` avoids rebuilding when only the deployment configuration needs to change.
 
 Use `IMAGE_TARGET=browser` to build Chromium support. It defaults to headless Chromium. For a permitted source that needs a visible browser, supply `FUZU_BROWSER_HEADLESS=false` when running `deploy.sh`; the browser image starts Xvfb for the process. Validate Fuzu from the chosen cloud region before relying on it. Security challenges and access denials are surfaced; no CAPTCHA solving or access-control bypass is supplied.
 

@@ -8,17 +8,21 @@ REGION="${REGION:-us-central1}"
 JOB_NAME="${JOB_NAME:-synapse-job-collector}"
 REPOSITORY="${REPOSITORY:-synapse-collectors}"
 IMAGE_TARGET="${IMAGE_TARGET:-http}"
+COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-}"
 TOKEN_SECRET="${TOKEN_SECRET:-synapse-collector-token}"
 for collector_identifier in "$PROJECT_ID" "$REGION" "$JOB_NAME" "$REPOSITORY" "$TOKEN_SECRET"; do
     [[ "$collector_identifier" =~ ^[a-z][a-z0-9-]{0,62}$ ]] || { echo 'Invalid resource identifier.' >&2; exit 1; }
 done
 [[ "$SYNAPSE_URL" =~ ^https://[^,\?\#[:space:]]+$ ]] || { echo 'SYNAPSE_URL must be a public HTTPS origin or application path.' >&2; exit 1; }
 [[ "$IMAGE_TARGET" == http || "$IMAGE_TARGET" == browser ]] || { echo 'IMAGE_TARGET must be http or browser.' >&2; exit 1; }
+if [[ -n "$COLLECTOR_IMAGE" ]]; then
+    [[ "$COLLECTOR_IMAGE" =~ ^[a-z0-9.-]+-docker\.pkg\.dev/[a-z0-9._/-]+(:[a-zA-Z0-9._-]+|@sha256:[a-f0-9]{64})$ ]] || { echo 'COLLECTOR_IMAGE must be an Artifact Registry image with a tag or sha256 digest.' >&2; exit 1; }
+fi
 command -v gcloud >/dev/null || { echo 'Install and authenticate the Google Cloud CLI first.' >&2; exit 1; }
 cd "$(dirname "$0")"
 gcloud services enable run.googleapis.com cloudscheduler.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com --project="$PROJECT_ID" --quiet
 
-if ! gcloud artifacts repositories describe "$REPOSITORY" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+if [[ -z "$COLLECTOR_IMAGE" ]] && ! gcloud artifacts repositories describe "$REPOSITORY" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
     gcloud artifacts repositories create "$REPOSITORY" --repository-format=docker --location="$REGION" --project="$PROJECT_ID" --quiet
     gcloud artifacts repositories set-cleanup-policies "$REPOSITORY" --policy=deploy/cleanup-policy.json --no-dry-run --location="$REGION" --project="$PROJECT_ID" --quiet
 fi
@@ -36,8 +40,11 @@ for collector_account in synapse-collector-runtime synapse-collector-trigger; do
     fi
 done
 gcloud secrets add-iam-policy-binding "$TOKEN_SECRET" --member="serviceAccount:$RUNTIME_ACCOUNT" --role=roles/secretmanager.secretAccessor --project="$PROJECT_ID" --quiet >/dev/null
-COLLECTOR_TAG="$(git rev-parse --short HEAD 2>/dev/null || date -u +%Y%m%d%H%M%S)"
-gcloud builds submit --config=cloudbuild.yaml --substitutions="_REGION=$REGION,_REPOSITORY=$REPOSITORY,_JOB=$JOB_NAME,_TAG=$COLLECTOR_TAG,_TARGET=$IMAGE_TARGET" --project="$PROJECT_ID" --quiet
+if [[ -z "$COLLECTOR_IMAGE" ]]; then
+    COLLECTOR_TAG="$(git rev-parse --short HEAD 2>/dev/null || date -u +%Y%m%d%H%M%S)"
+    gcloud builds submit --config=cloudbuild.yaml --substitutions="_REGION=$REGION,_REPOSITORY=$REPOSITORY,_JOB=$JOB_NAME,_TAG=$COLLECTOR_TAG,_TARGET=$IMAGE_TARGET" --project="$PROJECT_ID" --quiet
+    COLLECTOR_IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$JOB_NAME:$COLLECTOR_TAG"
+fi
 
 COLLECTOR_MEMORY=512Mi
 if [[ "$IMAGE_TARGET" == browser ]]; then COLLECTOR_MEMORY=2Gi; fi
@@ -47,7 +54,7 @@ if [[ -n "${SERPAPI_SECRET:-}" ]]; then
     gcloud secrets add-iam-policy-binding "$SERPAPI_SECRET" --member="serviceAccount:$RUNTIME_ACCOUNT" --role=roles/secretmanager.secretAccessor --project="$PROJECT_ID" --quiet >/dev/null
     COLLECTOR_SECRETS="$COLLECTOR_SECRETS,COLLECTOR_SERPAPI_KEY=$SERPAPI_SECRET:latest"
 fi
-gcloud run jobs deploy "$JOB_NAME" --image="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$JOB_NAME:$COLLECTOR_TAG" \
+gcloud run jobs deploy "$JOB_NAME" --image="$COLLECTOR_IMAGE" \
     --region="$REGION" --project="$PROJECT_ID" --service-account="$RUNTIME_ACCOUNT" \
     --tasks=1 --parallelism=1 --max-retries=0 --task-timeout=1200s --cpu=1 --memory="$COLLECTOR_MEMORY" \
     --set-env-vars="SYNAPSE_URL=$SYNAPSE_URL,COLLECTOR_MAX_SECONDS=900,FUZU_BROWSER_HEADLESS=${FUZU_BROWSER_HEADLESS:-true}" --set-secrets="$COLLECTOR_SECRETS" --quiet
