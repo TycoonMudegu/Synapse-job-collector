@@ -15,6 +15,9 @@ for collector_identifier in "$PROJECT_ID" "$REGION" "$JOB_NAME" "$REPOSITORY" "$
 done
 [[ "$SYNAPSE_URL" =~ ^https://[^,\?\#[:space:]]+$ ]] || { echo 'SYNAPSE_URL must be a public HTTPS origin or application path.' >&2; exit 1; }
 [[ "$IMAGE_TARGET" == http || "$IMAGE_TARGET" == browser ]] || { echo 'IMAGE_TARGET must be http or browser.' >&2; exit 1; }
+if [[ -n "${ADMIN_INVOKER_EMAIL:-}" ]]; then
+    [[ "$ADMIN_INVOKER_EMAIL" =~ ^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.gserviceaccount\.com$ ]] || { echo 'Invalid admin service-account email.' >&2; exit 1; }
+fi
 if [[ -n "$COLLECTOR_IMAGE" ]]; then
     [[ "$COLLECTOR_IMAGE" =~ ^[a-z0-9.-]+-docker\.pkg\.dev/[a-z0-9._/-]+(:[a-zA-Z0-9._-]+|@sha256:[a-f0-9]{64})$ ]] || { echo 'COLLECTOR_IMAGE must be an Artifact Registry image with a tag or sha256 digest.' >&2; exit 1; }
 fi
@@ -60,7 +63,6 @@ gcloud run jobs deploy "$JOB_NAME" --image="$COLLECTOR_IMAGE" \
     --set-env-vars="SYNAPSE_URL=$SYNAPSE_URL,COLLECTOR_MAX_SECONDS=900,FUZU_BROWSER_HEADLESS=${FUZU_BROWSER_HEADLESS:-true}" --set-secrets="$COLLECTOR_SECRETS" --quiet
 gcloud run jobs add-iam-policy-binding "$JOB_NAME" --member="serviceAccount:$TRIGGER_ACCOUNT" --role=roles/run.invoker --region="$REGION" --project="$PROJECT_ID" --quiet >/dev/null
 if [[ -n "${ADMIN_INVOKER_EMAIL:-}" ]]; then
-    [[ "$ADMIN_INVOKER_EMAIL" =~ ^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.iam\.gserviceaccount\.com$ ]] || { echo 'Invalid admin service-account email.' >&2; exit 1; }
     gcloud run jobs add-iam-policy-binding "$JOB_NAME" --member="serviceAccount:$ADMIN_INVOKER_EMAIL" --role=roles/run.jobsExecutorWithOverrides --region="$REGION" --project="$PROJECT_ID" --quiet >/dev/null
 fi
 

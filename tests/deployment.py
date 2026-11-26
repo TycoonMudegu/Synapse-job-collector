@@ -65,6 +65,14 @@ if sys.argv[1:4] == ['artifacts', 'repositories', 'describe'] and os.environ.get
         self.assertIn('--policy=deploy/cleanup-policy.json', cleanup)
         self.assertIn('--no-dry-run', cleanup)
 
+    def test_default_compute_account_can_invoke_manual_jobs(self):
+        account = '406985780653-compute@developer.gserviceaccount.com'
+        result, calls = self.deploy(IMAGE_TARGET='http', ADMIN_INVOKER_EMAIL=account)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        binding = next(call for call in calls if call[:3] == ['run', 'jobs', 'add-iam-policy-binding']
+                       and '--member=serviceAccount:' + account in call)
+        self.assertIn('--role=roles/run.jobsExecutorWithOverrides', binding)
+
     def test_existing_image_deploys_a_job_without_building(self):
         for image in [
             'us-central1-docker.pkg.dev/fixture-project/cloud-run-source-deploy/collector:existing',
@@ -88,6 +96,7 @@ if sys.argv[1:4] == ['artifacts', 'repositories', 'describe'] and os.environ.get
 
     def test_invalid_configuration_stops_before_cloud_calls(self):
         for values in [{'IMAGE_TARGET': 'unexpected'}, {'SYNAPSE_URL': 'http://127.0.0.1'}, {'PROJECT_ID': 'invalid/value'},
+                       {'ADMIN_INVOKER_EMAIL': 'user@example.com'},
                        {'COLLECTOR_IMAGE': '--unexpected'},
                        {'COLLECTOR_IMAGE': 'us-central1-docker.pkg.dev/project/repo/image'},
                        {'COLLECTOR_IMAGE': 'us-central1-docker.pkg.dev/project/repo/image:tag with spaces'}]:
