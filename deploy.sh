@@ -64,4 +64,9 @@ gcloud scheduler jobs "$COLLECTOR_SCHEDULE_ACTION" http "$JOB_NAME-daily" --loca
     --uri="https://run.googleapis.com/v2/projects/$PROJECT_ID/locations/$REGION/jobs/$JOB_NAME:run" \
     --oauth-service-account-email="$TRIGGER_ACCOUNT" --message-body='{}' \
     --headers='Content-Type=application/json' --max-retry-attempts=0 --quiet
-echo 'Collector deployed. Daily schedule: 07:00 Africa/Nairobi. No immediate collection was requested.'
+if [[ "${SCHEDULER_PAUSED:-false}" == true ]]; then
+    gcloud scheduler jobs pause "$JOB_NAME-daily" --location="$REGION" --project="$PROJECT_ID" --quiet
+    echo 'Collector deployed with its daily scheduler paused until application verification completes.'
+else
+    echo 'Collector deployed. Daily schedule: 07:00 Africa/Nairobi. No immediate collection was requested.'
+fi

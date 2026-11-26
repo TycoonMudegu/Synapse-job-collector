@@ -21,10 +21,13 @@ FROM http AS browser
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends chromium xvfb xauth fonts-liberation \
+    && install -d -o www-data -g www-data /var/www/.config /var/www/.cache \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=browser-dependencies /usr/local/bin/node /usr/local/bin/node
 COPY --from=browser-dependencies /app/node_modules ./node_modules
 ENV CHROMIUM_PATH=/usr/bin/chromium COLLECTOR_BROWSER_ENABLED=true FUZU_BROWSER_HEADLESS=true
+# Crashpad uses Chromium's default config directory even with a temporary profile.
+ENV XDG_CONFIG_HOME=/var/www/.config XDG_CACHE_HOME=/var/www/.cache
 USER www-data
 CMD ["sh", "/app/scripts/browser-entrypoint.sh"]
 RUN node --test tests/fuzu-browser.mjs
