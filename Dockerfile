@@ -8,7 +8,7 @@ COPY App ./App
 COPY scripts ./scripts
 COPY bootstrap.php ./bootstrap.php
 COPY tests ./tests
-RUN php tests/run.php
+RUN php tests/run.php && php tests/url-guard.php
 USER www-data
 CMD ["php", "scripts/collect.php"]
 

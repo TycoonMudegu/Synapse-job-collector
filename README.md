@@ -20,6 +20,7 @@ PHP 8.3+ needs curl, DOM, mbstring and SimpleXML. No Composer dependencies are i
 
 ```bash
 php tests/run.php
+php tests/url-guard.php
 python3 -m unittest discover -s tests -p deployment.py
 bash -n deploy.sh
 docker build --target http -t synapse-job-collector .

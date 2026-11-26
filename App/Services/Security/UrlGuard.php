@@ -92,10 +92,15 @@ final class UrlGuard
         if (filter_var($host, FILTER_VALIDATE_IP)) {
             $addresses[] = $host;
         } else {
-            foreach (dns_get_record($host, DNS_A | DNS_AAAA) ?: [] as $record) {
+            foreach (@dns_get_record($host, DNS_A | DNS_AAAA) ?: [] as $record) {
                 if (isset($record["ip"]) || isset($record["ipv6"])) {
                     $addresses[] = $record["ip"] ?? $record["ipv6"];
                 }
+            }
+            // Some recursive resolvers fail record queries while the system
+            // IPv4 lookup still works. Validate its results before pinning curl.
+            if ($addresses === []) {
+                $addresses = @gethostbynamel($host) ?: [];
             }
         }
         if ($addresses === []) {
