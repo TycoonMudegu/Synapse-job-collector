@@ -1,0 +1,13 @@
+/.env
+/.env.*
+!/.env.example
+/node_modules/
+/vendor/
+/credentials/
+/secrets/
+/.deploy/
+*.log
+*service-account*.json
+*credentials*.json
+**/__pycache__/
+*.pyc

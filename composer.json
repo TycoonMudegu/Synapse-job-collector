@@ -1,0 +1,15 @@
+{
+  "name": "synapse/job-collector",
+  "description": "Bounded daily job collection for Synapse, deployed independently to Cloud Run Jobs.",
+  "type": "project",
+  "require": {
+    "php": "^8.3",
+    "ext-curl": "*",
+    "ext-dom": "*",
+    "ext-mbstring": "*",
+    "ext-simplexml": "*"
+  },
+  "scripts": {
+    "test": "php tests/run.php"
+  }
+}

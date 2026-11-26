@@ -1,0 +1,13 @@
+**
+!App/
+!App/**
+!scripts/
+!scripts/**
+!tests/
+!tests/**
+!bootstrap.php
+!package.json
+!package-lock.json
+!Dockerfile
+**/__pycache__/
+*.pyc

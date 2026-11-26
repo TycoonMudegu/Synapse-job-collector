@@ -1,0 +1,22 @@
+substitutions:
+  _REGION: us-central1
+  _REPOSITORY: synapse-collectors
+  _JOB: synapse-job-collector
+  _TAG: latest
+  _TARGET: http
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      [
+        "build",
+        "--target",
+        "${_TARGET}",
+        "-t",
+        "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_JOB}:${_TAG}",
+        ".",
+      ]
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_JOB}:${_TAG}"
+timeout: 1200s
+options:
+  logging: CLOUD_LOGGING_ONLY

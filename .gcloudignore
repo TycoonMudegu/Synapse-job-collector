@@ -1,0 +1,14 @@
+**
+!App/
+!App/**
+!scripts/
+!scripts/**
+!tests/
+!tests/**
+!bootstrap.php
+!package.json
+!package-lock.json
+!Dockerfile
+!cloudbuild.yaml
+**/__pycache__/
+*.pyc
