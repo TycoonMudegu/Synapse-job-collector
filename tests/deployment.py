@@ -26,6 +26,7 @@ if sys.argv[1:4] == ['artifacts', 'repositories', 'describe'] and os.environ.get
             cli.chmod(0o700)
             environment = {**os.environ, 'PATH': directory + os.pathsep + os.environ['PATH'],
                            'PROJECT_ID': 'fixture-project', 'REGION': 'us-central1',
+                           'SCHEDULER_REGION': 'us-central1',
                            'SYNAPSE_URL': 'https://example.com',
                            'COLLECTOR_IMAGE': '',
                            'ADMIN_INVOKER_EMAIL': 'php@fixture-project.iam.gserviceaccount.com',
@@ -94,8 +95,33 @@ if sys.argv[1:4] == ['artifacts', 'repositories', 'describe'] and os.environ.get
         pause = next(call for call in calls if call[:3] == ['scheduler', 'jobs', 'pause'])
         self.assertEqual(pause[3], 'synapse-job-collector-daily')
 
+    def test_johannesburg_job_uses_a_separate_scheduler_region(self):
+        result, calls = self.deploy(REGION='africa-south1', SCHEDULER_REGION='europe-west1',
+                                    IMAGE_TARGET='http', SCHEDULER_PAUSED='true')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = next(call for call in calls if call[:3] == ['run', 'jobs', 'deploy'])
+        self.assertIn('--region=africa-south1', job)
+        build = next(call for call in calls if call[:2] == ['builds', 'submit'])
+        self.assertTrue(any('_REGION=africa-south1' in part for part in build))
+        scheduler_calls = [call for call in calls if call[:2] == ['scheduler', 'jobs']]
+        self.assertEqual(len(scheduler_calls), 3)
+        for call in scheduler_calls:
+            self.assertIn('--location=europe-west1', call)
+        schedule = next(call for call in scheduler_calls if call[2:4] == ['update', 'http'])
+        self.assertIn('--uri=https://run.googleapis.com/v2/projects/fixture-project/locations/africa-south1/jobs/synapse-job-collector:run', schedule)
+
+    def test_default_regions_keep_the_collector_in_johannesburg(self):
+        result, calls = self.deploy(REGION='', SCHEDULER_REGION='', IMAGE_TARGET='http')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = next(call for call in calls if call[:3] == ['run', 'jobs', 'deploy'])
+        self.assertIn('--region=africa-south1', job)
+        schedule = next(call for call in calls if call[:4] == ['scheduler', 'jobs', 'update', 'http'])
+        self.assertIn('--location=us-central1', schedule)
+        self.assertIn('--uri=https://run.googleapis.com/v2/projects/fixture-project/locations/africa-south1/jobs/synapse-job-collector:run', schedule)
+
     def test_invalid_configuration_stops_before_cloud_calls(self):
         for values in [{'IMAGE_TARGET': 'unexpected'}, {'SYNAPSE_URL': 'http://127.0.0.1'}, {'PROJECT_ID': 'invalid/value'},
+                       {'SCHEDULER_REGION': 'invalid/value'},
                        {'ADMIN_INVOKER_EMAIL': 'user@example.com'},
                        {'COLLECTOR_IMAGE': '--unexpected'},
                        {'COLLECTOR_IMAGE': 'us-central1-docker.pkg.dev/project/repo/image'},

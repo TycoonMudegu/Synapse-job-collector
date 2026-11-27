@@ -48,7 +48,8 @@ Generate a private token file without a final newline, put the same value in the
 umask 077
 php -r 'echo bin2hex(random_bytes(32));' > /private/path/collector-token
 PROJECT_ID=your-project \
-REGION=us-central1 \
+REGION=africa-south1 \
+SCHEDULER_REGION=us-central1 \
 SYNAPSE_URL=https://your-synapse-host.example \
 COLLECTOR_TOKEN_FILE=/private/path/collector-token \
 ADMIN_INVOKER_EMAIL=your-php-service-account@your-project.iam.gserviceaccount.com \
@@ -56,6 +57,8 @@ bash deploy.sh
 ```
 
 `deploy.sh` preserves an existing token secret. Supplying a different local token file will not rotate it. Rotate credentials deliberately in Secret Manager and the PHP environment together. Never commit a token file or service-account key.
+
+`REGION` selects the collector and image repository location and defaults to Johannesburg (`africa-south1`). `SCHEDULER_REGION` selects only the scheduler location and defaults to `us-central1`, because Cloud Scheduler is unavailable in Johannesburg. The scheduler calls the collector's regional API endpoint; source requests and Synapse callbacks run from the collector region. Set the PHP host's `COLLECTOR_REGION` to the collector's `REGION`. See [Google's scheduling documentation](https://docs.cloud.google.com/run/docs/execute/jobs-on-schedule) for using different scheduler and job regions.
 
 If the build succeeded and a service deployment failed, reuse its image by setting `COLLECTOR_IMAGE` to the Artifact Registry image URL with its tag or digest. With the deployment variables above exported, run:
 

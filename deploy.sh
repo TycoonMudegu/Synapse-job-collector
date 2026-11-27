@@ -4,13 +4,14 @@ set -euo pipefail
 # Run only after the PHP migration, callback token and admin role are configured.
 : "${PROJECT_ID:?Set PROJECT_ID}"
 : "${SYNAPSE_URL:?Set SYNAPSE_URL to the public HTTPS application origin}"
-REGION="${REGION:-us-central1}"
+REGION="${REGION:-africa-south1}"
+SCHEDULER_REGION="${SCHEDULER_REGION:-us-central1}"
 JOB_NAME="${JOB_NAME:-synapse-job-collector}"
 REPOSITORY="${REPOSITORY:-synapse-collectors}"
 IMAGE_TARGET="${IMAGE_TARGET:-http}"
 COLLECTOR_IMAGE="${COLLECTOR_IMAGE:-}"
 TOKEN_SECRET="${TOKEN_SECRET:-synapse-collector-token}"
-for collector_identifier in "$PROJECT_ID" "$REGION" "$JOB_NAME" "$REPOSITORY" "$TOKEN_SECRET"; do
+for collector_identifier in "$PROJECT_ID" "$REGION" "$SCHEDULER_REGION" "$JOB_NAME" "$REPOSITORY" "$TOKEN_SECRET"; do
     [[ "$collector_identifier" =~ ^[a-z][a-z0-9-]{0,62}$ ]] || { echo 'Invalid resource identifier.' >&2; exit 1; }
 done
 [[ "$SYNAPSE_URL" =~ ^https://[^,\?\#[:space:]]+$ ]] || { echo 'SYNAPSE_URL must be a public HTTPS origin or application path.' >&2; exit 1; }
@@ -67,14 +68,14 @@ if [[ -n "${ADMIN_INVOKER_EMAIL:-}" ]]; then
 fi
 
 COLLECTOR_SCHEDULE_ACTION=create
-if gcloud scheduler jobs describe "$JOB_NAME-daily" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then COLLECTOR_SCHEDULE_ACTION=update; fi
-gcloud scheduler jobs "$COLLECTOR_SCHEDULE_ACTION" http "$JOB_NAME-daily" --location="$REGION" --project="$PROJECT_ID" \
+if gcloud scheduler jobs describe "$JOB_NAME-daily" --location="$SCHEDULER_REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then COLLECTOR_SCHEDULE_ACTION=update; fi
+gcloud scheduler jobs "$COLLECTOR_SCHEDULE_ACTION" http "$JOB_NAME-daily" --location="$SCHEDULER_REGION" --project="$PROJECT_ID" \
     --schedule='0 7 * * *' --time-zone=Africa/Nairobi --http-method=POST \
     --uri="https://run.googleapis.com/v2/projects/$PROJECT_ID/locations/$REGION/jobs/$JOB_NAME:run" \
     --oauth-service-account-email="$TRIGGER_ACCOUNT" --message-body='{}' \
     --headers='Content-Type=application/json' --max-retry-attempts=0 --quiet
 if [[ "${SCHEDULER_PAUSED:-false}" == true ]]; then
-    gcloud scheduler jobs pause "$JOB_NAME-daily" --location="$REGION" --project="$PROJECT_ID" --quiet
+    gcloud scheduler jobs pause "$JOB_NAME-daily" --location="$SCHEDULER_REGION" --project="$PROJECT_ID" --quiet
     echo 'Collector deployed with its daily scheduler paused until application verification completes.'
 else
     echo 'Collector deployed. Daily schedule: 07:00 Africa/Nairobi. No immediate collection was requested.'
